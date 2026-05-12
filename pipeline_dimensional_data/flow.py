@@ -14,7 +14,7 @@ class DimensionalDataFlow:
         self.source_path = source_path
         self.status = "Pending"
 
-    def exec(self):
+    def exec(self, start_date, end_date):
         print(f"--- Starting Pipeline Execution: {self.execution_id} ---")
         self.status = "Running"
         
