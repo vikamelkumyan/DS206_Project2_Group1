@@ -1,4 +1,3 @@
-
 # Task 10/11: Group 1 Specific Table Names
 STAGING_TABLES = [
     "Categories", "Customers", "Employees", "OrderDetails", 

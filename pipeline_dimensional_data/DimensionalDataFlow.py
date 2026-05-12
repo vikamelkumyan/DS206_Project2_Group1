@@ -7,8 +7,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils import generate_execution_id
 from tasks import task_ingest_excel_sheet
 
-
-
 class DimensionalDataFlow:
     def __init__(self, source_path):
         # Requirement 12: Unique execution ID for each run
