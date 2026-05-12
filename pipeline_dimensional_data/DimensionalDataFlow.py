@@ -19,9 +19,7 @@ class DimensionalDataFlow:
         self.status = "Running"
         
         # List of sheets to ingest (Requirement 11 + 12)
-        # Your teammate can add 'Orders', 'Suppliers', etc. to this list
-        tables_to_ingest = ['Customers', 'Products'] 
-        
+        tables_to_ingest = ['Customers', 'Products', 'Orders', 'Categories', 'Suppliers', 'Employees']        
         try:
             for table in tables_to_ingest:
                 print(f"Action: Ingesting {table}...")
