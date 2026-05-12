@@ -288,18 +288,20 @@ GO
    DimTerritories - SCD3
    Source: staging_raw_Territories
    Natural key: TerritoryID
-   One selected SCD3-tracked attribute: TerritoryDescription.
-   Current value is TerritoryDescription, prior value is PreviousTerritoryDescription.
+   One selected SCD3-tracked attribute: RegionID.
+   Current value is RegionID_NK / RegionID_SK_FK, prior value is PreviousRegionID_NK / PreviousRegionID_SK_FK.
 ===================================================================================== */
 CREATE TABLE [dbo].[DimTerritories] (
     [TerritoryID_SK] INT IDENTITY(1,1) NOT NULL,
     [TerritoryID_NK] NVARCHAR(20) NOT NULL,
     [TerritoryDescription] NVARCHAR(100) NULL,
-    [PreviousTerritoryDescription] NVARCHAR(100) NULL,
-    [PreviousTerritoryDescription_ValidTo] DATE NULL,
     [TerritoryCode] NVARCHAR(20) NULL,
+
     [RegionID_NK] INT NULL,
     [RegionID_SK_FK] INT NULL,
+    [PreviousRegionID_NK] INT NULL,
+    [PreviousRegionID_SK_FK] INT NULL,
+    [PreviousRegionID_ValidTo] DATE NULL,
 
     [SOR_SK] INT NOT NULL,
     [staging_raw_id_nk] INT NOT NULL,
@@ -307,6 +309,7 @@ CREATE TABLE [dbo].[DimTerritories] (
     CONSTRAINT [PK_DimTerritories] PRIMARY KEY CLUSTERED ([TerritoryID_SK] ASC),
     CONSTRAINT [UQ_DimTerritories_TerritoryID_NK] UNIQUE ([TerritoryID_NK]),
     CONSTRAINT [FK_DimTerritories_DimRegion] FOREIGN KEY ([RegionID_SK_FK]) REFERENCES [dbo].[DimRegion] ([RegionID_SK]),
+    CONSTRAINT [FK_DimTerritories_Previous_DimRegion] FOREIGN KEY ([PreviousRegionID_SK_FK]) REFERENCES [dbo].[DimRegion] ([RegionID_SK]),
     CONSTRAINT [FK_DimTerritories_Dim_SOR] FOREIGN KEY ([SOR_SK]) REFERENCES [dbo].[Dim_SOR] ([SOR_SK])
 );
 GO
