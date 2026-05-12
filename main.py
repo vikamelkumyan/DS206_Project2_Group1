@@ -20,7 +20,6 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Initializing with source_path as required by your __init__
         pipeline = DimensionalDataFlow(source_path="data")
         
         print(f"Starting pipeline: {args.start_date} to {args.end_date}")
