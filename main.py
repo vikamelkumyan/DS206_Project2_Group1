@@ -20,12 +20,16 @@ def main():
     args = parser.parse_args()
 
     try:
-        pipeline = DimensionalDataFlow(source_path="data")
+        source_path = os.path.join(root_dir, "raw_data_source.xlsx")
+        pipeline = DimensionalDataFlow(source_path=source_path)
         
         print(f"Starting pipeline: {args.start_date} to {args.end_date}")
         
         # Now passing the two required date arguments
-        pipeline.exec(args.start_date, args.end_date)
+        result = pipeline.exec(args.start_date, args.end_date)
+        if not result.get("success"):
+            print(f"Pipeline failed: {result}")
+            sys.exit(1)
         
         print("Pipeline finished successfully.")
     except Exception as e:
