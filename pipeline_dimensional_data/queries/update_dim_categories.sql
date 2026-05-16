@@ -26,6 +26,23 @@ BEGIN TRY
     IF @SOR_SK IS NULL
         THROW 50001, 'Dim_SOR does not contain the source table name for DimCategories.', 1;
 
+    /*
+        DimProducts keeps CategoryID_NK for traceability, but CategoryID_SK_FK points
+        to DimCategories. Clear that FK before physically deleting missing categories.
+    */
+    ;WITH CategoriesToDelete AS (
+        SELECT DST.CategoryID_SK
+        FROM [{database_name}].[{schema_name}].[{target_table_name}] AS DST
+        LEFT JOIN [{database_name}].[{schema_name}].[{source_table_name}] AS SRC
+            ON SRC.CategoryID = DST.CategoryID_NK
+        WHERE SRC.CategoryID IS NULL
+    )
+    UPDATE PROD
+    SET PROD.CategoryID_SK_FK = NULL
+    FROM [{database_name}].[{schema_name}].[DimProducts] AS PROD
+    INNER JOIN CategoriesToDelete AS DEL
+        ON DEL.CategoryID_SK = PROD.CategoryID_SK_FK;
+
     MERGE [{database_name}].[{schema_name}].[{target_table_name}] AS DST
     USING (
         SELECT
