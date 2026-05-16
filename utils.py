@@ -15,6 +15,36 @@ DEFAULT_SQL_SERVER_CONFIG_PATH = os.path.join(
 DEFAULT_ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 
 
+def _read_bool(value, default=False):
+    if value is None or value == "":
+        return default
+
+    return str(value).strip().lower() in {"yes", "true", "1", "on"}
+
+
+def _read_int(value, default):
+    if value is None or value == "":
+        return default
+
+    return int(value)
+
+
+def _normalize_config_key(key):
+    return key.strip().lower().replace(" ", "")
+
+
+def _normalize_sql_server_name(server):
+    if not server:
+        return server
+
+    # SQL Server named instances are normally written HOST\\INSTANCE.
+    # Some config examples use HOST/INSTANCE; normalize that common typo.
+    if "/" in server and "\\" not in server:
+        return server.replace("/", "\\")
+
+    return server
+
+
 def generate_execution_id():
     """Generate a unique UUID string for pipeline execution tracking."""
     return str(uuid.uuid4())
@@ -53,20 +83,31 @@ def parse_db_config(
         print(f"Warning: database config section [{section}] not found at {config_path}")
         return None
 
-    cfg = {key: value for key, value in parser.items(section)}
+    cfg = {_normalize_config_key(key): value.strip() for key, value in parser.items(section)}
     env_cfg = dotenv_values(env_path) if env_path else {}
-    env_password = env_cfg.get("MSSQL_PASSWORD") or env_cfg.get("MSSQL_SA_PASSWORD")
+
+    server = env_cfg.get("MSSQL_SERVER") or cfg.get("server", "localhost")
+    port = _read_int(env_cfg.get("MSSQL_PORT") or cfg.get("port"), 1433)
+    database = env_cfg.get("MSSQL_DATABASE") or cfg.get("database", "ORDER_DDS")
+    user = env_cfg.get("MSSQL_USER") or cfg.get("user", "")
+    password = env_cfg.get("MSSQL_PASSWORD") or env_cfg.get("MSSQL_SA_PASSWORD") or cfg.get("password", "")
 
     return {
-        "driver": cfg.get("driver", ""),
-        "server": cfg.get("server", "localhost"),
-        "port": int(cfg.get("port", 1433)),
-        "database": cfg.get("database", "ORDER_DDS"),
-        "trusted_connection": cfg.get("trusted_connection", "no").lower() in {"yes", "true", "1"},
-        "encrypt": cfg.get("encrypt", "yes").lower() in {"yes", "true", "1"},
-        "trust_server_certificate": cfg.get("trust_server_certificate", "yes").lower() in {"yes", "true", "1"},
-        "user": cfg.get("user", ""),
-        "password": env_password or cfg.get("password", ""),
+        "driver": env_cfg.get("MSSQL_DRIVER") or cfg.get("driver", ""),
+        "server": _normalize_sql_server_name(server),
+        "port": port,
+        "database": database,
+        "trusted_connection": _read_bool(
+            env_cfg.get("MSSQL_TRUSTED_CONNECTION") or cfg.get("trusted_connection"),
+            default=False,
+        ),
+        "encrypt": _read_bool(env_cfg.get("MSSQL_ENCRYPT") or cfg.get("encrypt"), default=True),
+        "trust_server_certificate": _read_bool(
+            env_cfg.get("MSSQL_TRUST_SERVER_CERTIFICATE") or cfg.get("trust_server_certificate"),
+            default=True,
+        ),
+        "user": user,
+        "password": password,
     }
 
 

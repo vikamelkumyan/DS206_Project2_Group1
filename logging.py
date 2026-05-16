@@ -2,29 +2,34 @@
 Logging setup for the dimensional data pipeline.
 
 This project file is intentionally named logging.py to match the assignment.
+It re-exports Python's standard logging module so third-party imports of
+``logging`` continue to work, then adds the project-specific logger factory.
 """
 
 from __future__ import annotations
 
-import logging
+import importlib.util
 import os
+import sysconfig
 
-from logging import (
-    Filter,
-    FileHandler,
-    Formatter,
-    INFO,
-    StreamHandler,
-    getLogger,
+
+_STDLIB_LOGGING_DIR = os.path.join(sysconfig.get_path("stdlib"), "logging")
+_STDLIB_LOGGING_INIT = os.path.join(_STDLIB_LOGGING_DIR, "__init__.py")
+_SPEC = importlib.util.spec_from_file_location(
+    "_stdlib_logging",
+    _STDLIB_LOGGING_INIT,
+    submodule_search_locations=[_STDLIB_LOGGING_DIR],
 )
+_stdlib_logging = importlib.util.module_from_spec(_SPEC)
+assert _SPEC.loader is not None
+_SPEC.loader.exec_module(_stdlib_logging)
 
-__all__ = [
-    "getLogger",
-    "Filter",
-    "FileHandler",
-    "Formatter",
-    "INFO",
-    "StreamHandler",
+for _name in dir(_stdlib_logging):
+    if _name not in {"__name__", "__package__", "__spec__", "__loader__", "__file__"}:
+        globals()[_name] = getattr(_stdlib_logging, _name)
+
+__path__ = [_STDLIB_LOGGING_DIR]
+__all__ = list(getattr(_stdlib_logging, "__all__", [])) + [
     "ExecutionIdFilter",
     "setup_dimensional_logger",
 ]
