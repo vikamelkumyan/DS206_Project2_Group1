@@ -1,7 +1,7 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_fact.sql
-    Purpose: Populate FactOrders from staging_raw_Orders, staging_raw_OrderDetails, and dimension tables.
+    Purpose: Populate FactOrders from Orders, OrderDetails, and dimension tables.
 
     Fact logic: SNAPSHOT / MERGE-based load.
     Grain: one row per order-product line, identified by OrderID_NK + ProductID_NK.
@@ -46,10 +46,10 @@ BEGIN TRY
     WHERE staging_raw_table_name = N'{source_order_details_table_name}';
 
     IF @Orders_SOR_SK IS NULL
-        THROW 50103, 'Dim_SOR does not contain the source table name for staging raw Orders.', 1;
+        THROW 50103, 'Dim_SOR does not contain the source table name for Orders.', 1;
 
     IF @OrderDetails_SOR_SK IS NULL
-        THROW 50104, 'Dim_SOR does not contain the source table name for staging raw OrderDetails.', 1;
+        THROW 50104, 'Dim_SOR does not contain the source table name for OrderDetails.', 1;
 
     ;WITH FactSource AS (
         SELECT
@@ -99,11 +99,9 @@ BEGIN TRY
            AND dc.IsCurrent = 1
         LEFT JOIN [{database_name}].[{schema_name}].[DimEmployees] AS de
             ON o.EmployeeID = de.EmployeeID_NK
-           AND de.IsDeleted = 0
         LEFT JOIN [{database_name}].[{schema_name}].[DimProducts] AS dp
             ON od.ProductID = dp.ProductID_NK
            AND dp.IsCurrent = 1
-           AND dp.IsDeleted = 0
         LEFT JOIN [{database_name}].[{schema_name}].[DimShippers] AS ds
             ON o.ShipVia = ds.ShipperID_NK
         LEFT JOIN [{database_name}].[{schema_name}].[DimTerritories] AS dt

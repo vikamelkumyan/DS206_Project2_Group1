@@ -1,9 +1,10 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_dim_categories.sql
-    Purpose: Populate DimCategories from staging_raw_Categories.
+    Purpose: Populate DimCategories from Categories.
 
     SCD logic: SCD1 with delete.
+    Delete handling: physical delete from the dimension table when a source row disappears.
     Parameters expected from Python .format():
         database_name
         schema_name
@@ -42,38 +43,29 @@ BEGIN TRY
             CategoryName,
             Description,
             SOR_SK,
-            staging_raw_id_nk,
-            IsDeleted,
-            DeletedDate
+            staging_raw_id_nk
         )
         VALUES (
             SRC.CategoryID,
             SRC.CategoryName,
             SRC.Description,
             @SOR_SK,
-            SRC.staging_raw_id_sk,
-            0,
-            NULL
+            SRC.staging_raw_id_sk
         )
     WHEN MATCHED AND (
            ISNULL(DST.CategoryName, N'') <> ISNULL(SRC.CategoryName, N'')
         OR ISNULL(DST.Description, N'') <> ISNULL(SRC.Description, N'')
         OR ISNULL(DST.staging_raw_id_nk, -1) <> ISNULL(SRC.staging_raw_id_sk, -1)
         OR DST.SOR_SK <> @SOR_SK
-        OR DST.IsDeleted = 1
     )
     THEN
         UPDATE SET
             DST.CategoryName = SRC.CategoryName,
             DST.Description = SRC.Description,
             DST.SOR_SK = @SOR_SK,
-            DST.staging_raw_id_nk = SRC.staging_raw_id_sk,
-            DST.IsDeleted = 0,
-            DST.DeletedDate = NULL
+            DST.staging_raw_id_nk = SRC.staging_raw_id_sk
     WHEN NOT MATCHED BY SOURCE THEN
-        UPDATE SET
-            DST.IsDeleted = 1,
-            DST.DeletedDate = COALESCE(DST.DeletedDate, CAST(GETDATE() AS DATE));
+        DELETE;
 
     COMMIT TRANSACTION;
 END TRY

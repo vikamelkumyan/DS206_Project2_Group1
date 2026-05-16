@@ -1,7 +1,7 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_dim_region.sql
-    Purpose: Populate DimRegion from staging_raw_Region.
+    Purpose: Populate DimRegion from Region.
 
     SCD logic: SCD1.
     Parameters expected from Python .format():

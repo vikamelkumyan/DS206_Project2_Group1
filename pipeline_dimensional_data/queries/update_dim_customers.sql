@@ -1,7 +1,7 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_dim_customers.sql
-    Purpose: Populate DimCustomers from staging_raw_Customers.
+    Purpose: Populate DimCustomers from Customers.
 
     SCD logic: SCD2.
     Parameters expected from Python .format():
