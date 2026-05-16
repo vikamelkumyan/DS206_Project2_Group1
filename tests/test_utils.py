@@ -94,6 +94,75 @@ password =
     assert result["password"] == "SecretFromEnv"
 
 
+def test_parse_db_config_handles_loose_key_spacing_and_named_instance(tmp_path):
+    config_file = tmp_path / "sql_server_config.cfg"
+    config_file.write_text(
+        """
+[sql_server]
+driver = ODBC Driver 18 for SQL Server
+server = localhost/SQLEXPRESS
+database = ORDER_DDS
+trusted _connection = yes
+encrypt = yes
+trust_ server_certificate = yes
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = utils.parse_db_config(str(config_file), env_path=str(tmp_path / ".env"))
+
+    assert result["server"] == "localhost\\SQLEXPRESS"
+    assert result["port"] == 1433
+    assert result["database"] == "ORDER_DDS"
+    assert result["trusted_connection"] is True
+    assert result["encrypt"] is True
+    assert result["trust_server_certificate"] is True
+
+
+def test_parse_db_config_env_connection_overrides(tmp_path):
+    config_file = tmp_path / "sql_server_config.cfg"
+    env_file = tmp_path / ".env"
+    config_file.write_text(
+        """
+[sql_server]
+driver = ODBC Driver 18 for SQL Server
+server = localhost
+port = 1433
+database = ORDER_DDS
+trusted_connection = no
+encrypt = yes
+trust_server_certificate = yes
+user = sa
+password =
+""".strip(),
+        encoding="utf-8",
+    )
+    env_file.write_text(
+        """
+MSSQL_SERVER=127.0.0.1
+MSSQL_PORT=11433
+MSSQL_DATABASE=OTHER_DDS
+MSSQL_USER=app_user
+MSSQL_PASSWORD=SecretFromEnv
+MSSQL_TRUSTED_CONNECTION=yes
+MSSQL_ENCRYPT=no
+MSSQL_TRUST_SERVER_CERTIFICATE=no
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = utils.parse_db_config(str(config_file), env_path=str(env_file))
+
+    assert result["server"] == "127.0.0.1"
+    assert result["port"] == 11433
+    assert result["database"] == "OTHER_DDS"
+    assert result["user"] == "app_user"
+    assert result["password"] == "SecretFromEnv"
+    assert result["trusted_connection"] is True
+    assert result["encrypt"] is False
+    assert result["trust_server_certificate"] is False
+
+
 def test_parse_db_config_legacy_sa_password_env_key(tmp_path):
     config_file = tmp_path / "sql_server_config.cfg"
     env_file = tmp_path / ".env"
