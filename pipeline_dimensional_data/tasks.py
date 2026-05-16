@@ -6,6 +6,7 @@ from utils import (
     connect_to_db,
     execute_sql_script,
     format_sql,
+    get_sql_parameter_placeholder,
     load_sql_script,
     parse_db_config,
     prepare_dataframe_for_sql,
@@ -79,11 +80,15 @@ def task_ingest_excel_sheet(file_path, sheet_name, table_name=None):
 
         df = prepare_dataframe_for_sql(df)
 
-        columns = ", ".join(f"[{column}]" for column in df.columns)
-        placeholders = ", ".join(["%s"] * len(df.columns))
-
         connection = connect_to_db()
         cursor = connection.cursor()
+        placeholder = get_sql_parameter_placeholder(connection)
+        columns = ", ".join(f"[{column}]" for column in df.columns)
+        placeholders = ", ".join([placeholder] * len(df.columns))
+
+        if hasattr(cursor, "fast_executemany"):
+            cursor.fast_executemany = True
+
         cursor.execute(f"TRUNCATE TABLE [{SCHEMA_NAME}].[{table_name}]")
 
         insert_sql = f"INSERT INTO [{SCHEMA_NAME}].[{table_name}] ({columns}) VALUES ({placeholders})"

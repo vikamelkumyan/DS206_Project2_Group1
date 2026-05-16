@@ -118,7 +118,7 @@ trust_ server_certificate = yes
     assert result["trust_server_certificate"] is True
 
 
-def test_parse_db_config_env_connection_overrides(tmp_path):
+def test_parse_db_config_env_only_overrides_password(tmp_path):
     config_file = tmp_path / "sql_server_config.cfg"
     env_file = tmp_path / ".env"
     config_file.write_text(
@@ -152,14 +152,14 @@ MSSQL_TRUST_SERVER_CERTIFICATE=no
 
     result = utils.parse_db_config(str(config_file), env_path=str(env_file))
 
-    assert result["server"] == "127.0.0.1"
-    assert result["port"] == 11433
-    assert result["database"] == "OTHER_DDS"
-    assert result["user"] == "app_user"
+    assert result["server"] == "localhost"
+    assert result["port"] == 1433
+    assert result["database"] == "ORDER_DDS"
+    assert result["user"] == "sa"
     assert result["password"] == "SecretFromEnv"
-    assert result["trusted_connection"] is True
-    assert result["encrypt"] is False
-    assert result["trust_server_certificate"] is False
+    assert result["trusted_connection"] is False
+    assert result["encrypt"] is True
+    assert result["trust_server_certificate"] is True
 
 
 def test_parse_db_config_legacy_sa_password_env_key(tmp_path):
@@ -182,6 +182,179 @@ password =
 
     assert result["user"] == "sa"
     assert result["password"] == "SecretFromLegacyEnv"
+
+
+def test_build_odbc_connection_string_trusted_connection():
+    cfg = {
+        "driver": "ODBC Driver 18 for SQL Server",
+        "server": "localhost\\SQLEXPRESS",
+        "port": 1433,
+        "database": "ORDER_DDS",
+        "trusted_connection": True,
+        "encrypt": True,
+        "trust_server_certificate": True,
+        "user": "",
+        "password": "",
+    }
+
+    result = utils.build_odbc_connection_string(cfg)
+
+    assert result == (
+        "DRIVER={ODBC Driver 18 for SQL Server};"
+        "SERVER=localhost\\SQLEXPRESS;"
+        "DATABASE=ORDER_DDS;"
+        "Encrypt=yes;"
+        "TrustServerCertificate=yes;"
+        "Trusted_Connection=yes"
+    )
+
+
+def test_build_odbc_connection_string_sql_auth_with_non_default_port():
+    cfg = {
+        "driver": "ODBC Driver 18 for SQL Server",
+        "server": "127.0.0.1",
+        "port": 11433,
+        "database": "ORDER_DDS",
+        "trusted_connection": False,
+        "encrypt": False,
+        "trust_server_certificate": True,
+        "user": "sa",
+        "password": "Password123!",
+    }
+
+    result = utils.build_odbc_connection_string(cfg, database="master")
+
+    assert result == (
+        "DRIVER={ODBC Driver 18 for SQL Server};"
+        "SERVER=127.0.0.1,11433;"
+        "DATABASE=master;"
+        "Encrypt=no;"
+        "TrustServerCertificate=yes;"
+        "UID=sa;"
+        "PWD=Password123!"
+    )
+
+
+def test_connect_to_db_uses_pyodbc_for_trusted_connection():
+    cfg = {
+        "driver": "ODBC Driver 18 for SQL Server",
+        "server": "localhost\\SQLEXPRESS",
+        "port": 1433,
+        "database": "ORDER_DDS",
+        "trusted_connection": True,
+        "encrypt": True,
+        "trust_server_certificate": True,
+        "user": "",
+        "password": "",
+    }
+
+    with patch("utils.parse_db_config", return_value=cfg), patch("utils.pyodbc.connect") as connect:
+        utils.connect_to_db()
+
+    connect.assert_called_once_with(
+        "DRIVER={ODBC Driver 18 for SQL Server};"
+        "SERVER=localhost\\SQLEXPRESS;"
+        "DATABASE=ORDER_DDS;"
+        "Encrypt=yes;"
+        "TrustServerCertificate=yes;"
+        "Trusted_Connection=yes"
+    )
+
+
+def test_connect_to_db_uses_pymssql_without_odbc_driver_or_trusted_connection():
+    cfg = {
+        "driver": "",
+        "server": "localhost",
+        "port": 1433,
+        "database": "ORDER_DDS",
+        "trusted_connection": False,
+        "encrypt": True,
+        "trust_server_certificate": True,
+        "user": "sa",
+        "password": "Password123!",
+    }
+
+    with patch("utils.parse_db_config", return_value=cfg), patch("utils.pymssql.connect") as connect:
+        utils.connect_to_db(database="master")
+
+    connect.assert_called_once_with(
+        server="localhost",
+        user="sa",
+        password="Password123!",
+        database="master",
+        port=1433,
+    )
+
+
+def test_connect_to_db_prefers_pymssql_for_sql_auth_even_when_odbc_driver_is_configured():
+    cfg = {
+        "driver": "ODBC Driver 18 for SQL Server",
+        "server": "localhost",
+        "port": 1433,
+        "database": "ORDER_DDS",
+        "trusted_connection": False,
+        "encrypt": True,
+        "trust_server_certificate": True,
+        "user": "sa",
+        "password": "Password123!",
+    }
+
+    with patch("utils.parse_db_config", return_value=cfg), patch("utils.pymssql.connect") as pymssql_connect, patch(
+        "utils.pyodbc.connect"
+    ) as pyodbc_connect:
+        utils.connect_to_db()
+
+    pymssql_connect.assert_called_once_with(
+        server="localhost",
+        user="sa",
+        password="Password123!",
+        database="ORDER_DDS",
+        port=1433,
+    )
+    pyodbc_connect.assert_not_called()
+
+
+def test_connect_to_db_falls_back_to_pyodbc_for_sql_auth_when_pymssql_fails():
+    cfg = {
+        "driver": "ODBC Driver 18 for SQL Server",
+        "server": "localhost\\SQLEXPRESS",
+        "port": 1433,
+        "database": "ORDER_DDS",
+        "trusted_connection": False,
+        "encrypt": False,
+        "trust_server_certificate": True,
+        "user": "sa",
+        "password": "Password123!",
+    }
+
+    with patch("utils.parse_db_config", return_value=cfg), patch(
+        "utils.pymssql.connect", side_effect=RuntimeError("pymssql failed")
+    ), patch("utils.pyodbc.connect") as pyodbc_connect:
+        utils.connect_to_db()
+
+    pyodbc_connect.assert_called_once_with(
+        "DRIVER={ODBC Driver 18 for SQL Server};"
+        "SERVER=localhost\\SQLEXPRESS;"
+        "DATABASE=ORDER_DDS;"
+        "Encrypt=no;"
+        "TrustServerCertificate=yes;"
+        "UID=sa;"
+        "PWD=Password123!"
+    )
+
+
+def test_get_sql_parameter_placeholder_for_pyodbc_connection():
+    PyodbcConnection = type("Connection", (), {})
+    PyodbcConnection.__module__ = "pyodbc"
+
+    assert utils.get_sql_parameter_placeholder(PyodbcConnection()) == "?"
+
+
+def test_get_sql_parameter_placeholder_for_pymssql_connection():
+    PymssqlConnection = type("Connection", (), {})
+    PymssqlConnection.__module__ = "pymssql"
+
+    assert utils.get_sql_parameter_placeholder(PymssqlConnection()) == "%s"
 
 
 def test_parse_db_config_missing_file_returns_none(tmp_path):
