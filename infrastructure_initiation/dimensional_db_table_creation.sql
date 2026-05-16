@@ -335,7 +335,7 @@ CREATE TABLE [dbo].[DimProducts] (
     [ValidTo] DATE NULL,
     [IsCurrent] BIT NOT NULL CONSTRAINT [DF_DimProducts_IsCurrent] DEFAULT (1),
     CONSTRAINT [PK_DimProducts] PRIMARY KEY CLUSTERED ([ProductID_TABLE_SK] ASC),
-    CONSTRAINT [FK_DimProducts_DimCategories] FOREIGN KEY ([CategoryID_SK_FK]) REFERENCES [dbo].[DimCategories] ([CategoryID_SK]),
+    CONSTRAINT [FK_DimProducts_DimCategories] FOREIGN KEY ([CategoryID_SK_FK]) REFERENCES [dbo].[DimCategories] ([CategoryID_SK]) ON DELETE SET NULL,
     CONSTRAINT [FK_DimProducts_DimSuppliers] FOREIGN KEY ([SupplierID_SK_FK]) REFERENCES [dbo].[DimSuppliers] ([SupplierID_SK]),
     CONSTRAINT [FK_DimProducts_Dim_SOR] FOREIGN KEY ([SOR_SK]) REFERENCES [dbo].[Dim_SOR] ([SOR_SK])
 );
