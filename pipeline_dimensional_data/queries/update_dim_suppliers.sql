@@ -46,6 +46,70 @@ BEGIN TRY
     IF @SOR_SK IS NULL
         THROW 50006, 'Dim_SOR does not contain the source table name for DimSuppliers.', 1;
 
+    /*
+        SCD4 delete handling: when a supplier disappears from the source, move the
+        current supplier row to DimSuppliers_History and remove it from DimSuppliers.
+        DimProducts keeps SupplierID_NK for traceability; clear only the FK first.
+    */
+    INSERT INTO [{database_name}].[{schema_name}].[DimSuppliers_History] (
+        SupplierID_NK,
+        CompanyName,
+        ContactName,
+        ContactTitle,
+        Address,
+        City,
+        Region,
+        PostalCode,
+        Country,
+        Phone,
+        Fax,
+        HomePage,
+        SOR_SK,
+        staging_raw_id_nk,
+        ValidFrom,
+        ValidTo
+    )
+    SELECT
+        DST.SupplierID_NK,
+        DST.CompanyName,
+        DST.ContactName,
+        DST.ContactTitle,
+        DST.Address,
+        DST.City,
+        DST.Region,
+        DST.PostalCode,
+        DST.Country,
+        DST.Phone,
+        DST.Fax,
+        DST.HomePage,
+        DST.SOR_SK,
+        DST.staging_raw_id_nk,
+        DST.ValidFrom,
+        @Yesterday
+    FROM [{database_name}].[{schema_name}].[{target_table_name}] AS DST
+    LEFT JOIN [{database_name}].[{schema_name}].[{source_table_name}] AS SRC
+        ON SRC.SupplierID = DST.SupplierID_NK
+    WHERE SRC.SupplierID IS NULL;
+
+    ;WITH SuppliersToDelete AS (
+        SELECT DST.SupplierID_SK
+        FROM [{database_name}].[{schema_name}].[{target_table_name}] AS DST
+        LEFT JOIN [{database_name}].[{schema_name}].[{source_table_name}] AS SRC
+            ON SRC.SupplierID = DST.SupplierID_NK
+        WHERE SRC.SupplierID IS NULL
+    )
+    UPDATE PROD
+    SET PROD.SupplierID_SK_FK = NULL
+    FROM [{database_name}].[{schema_name}].[DimProducts] AS PROD
+    INNER JOIN SuppliersToDelete AS DEL
+        ON DEL.SupplierID_SK = PROD.SupplierID_SK_FK;
+
+    DELETE DST
+    FROM [{database_name}].[{schema_name}].[{target_table_name}] AS DST
+    LEFT JOIN [{database_name}].[{schema_name}].[{source_table_name}] AS SRC
+        ON SRC.SupplierID = DST.SupplierID_NK
+    WHERE SRC.SupplierID IS NULL;
+
     MERGE [{database_name}].[{schema_name}].[{target_table_name}] AS DST
     USING (
         SELECT
