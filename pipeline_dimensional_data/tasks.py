@@ -56,7 +56,12 @@ def task_execute_sql_file(script_path, parameters=None, task_name=None):
     try:
         connection = connect_to_db()
         result = execute_sql_script(connection, sql_script)
-        return _result(result["success"], task_name, error=result.get("error"))
+        return _result(
+            result["success"],
+            task_name,
+            error=result.get("error"),
+            script=str(script_path),
+        )
     except Exception as exc:
         return _result(False, task_name, error=str(exc))
     finally:
@@ -108,12 +113,22 @@ def task_ingest_excel_sheet(file_path, sheet_name, table_name=None):
 
 
 def task_ingest_all_source_tables(file_path):
+    table_counts = []
+
     for sheet_name in SOURCE_SHEETS:
         result = task_ingest_excel_sheet(file_path, sheet_name)
         if not result["success"]:
             return result
 
-    return _result(True, "ingest_all_source_tables")
+        table_counts.append(
+            {
+                "sheet": sheet_name,
+                "table": result["table"],
+                "rows": result["rows"],
+            }
+        )
+
+    return _result(True, "ingest_all_source_tables", table_counts=table_counts)
 
 
 def task_update_dimension(dimension_config):
@@ -128,20 +143,38 @@ def task_update_dimension(dimension_config):
         "target_table_name": dimension_config["target_table_name"],
     }
 
-    return task_execute_sql_file(
+    result = task_execute_sql_file(
         QUERIES_DIR / dimension_config["query"],
         parameters=parameters,
         task_name=f"update_dim_{dimension_config['name']}",
     )
+    result.update(
+        {
+            "source_table": dimension_config["source_table_name"],
+            "target_table": dimension_config["target_table_name"],
+            "query": dimension_config["query"],
+        }
+    )
+    return result
 
 
 def task_update_all_dimensions():
+    dimensions = []
+
     for dimension_config in DIMENSION_LOAD_ORDER:
         result = task_update_dimension(dimension_config)
         if not result["success"]:
             return result
 
-    return _result(True, "update_all_dimensions")
+        dimensions.append(
+            {
+                "source_table": result["source_table"],
+                "target_table": result["target_table"],
+                "query": result["query"],
+            }
+        )
+
+    return _result(True, "update_all_dimensions", dimensions=dimensions)
 
 
 def task_update_fact(start_date, end_date):
@@ -159,11 +192,22 @@ def task_update_fact(start_date, end_date):
         "end_date": end_date,
     }
 
-    return task_execute_sql_file(
+    result = task_execute_sql_file(
         QUERIES_DIR / FACT_CONFIG["query"],
         parameters=parameters,
         task_name="update_fact",
     )
+    result.update(
+        {
+            "source_orders_table": FACT_CONFIG["source_orders_table_name"],
+            "source_order_details_table": FACT_CONFIG["source_order_details_table_name"],
+            "target_table": FACT_CONFIG["target_table_name"],
+            "query": FACT_CONFIG["query"],
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+    )
+    return result
 
 
 def task_update_fact_error(start_date, end_date):
@@ -181,8 +225,19 @@ def task_update_fact_error(start_date, end_date):
         "end_date": end_date,
     }
 
-    return task_execute_sql_file(
+    result = task_execute_sql_file(
         QUERIES_DIR / FACT_ERROR_CONFIG["query"],
         parameters=parameters,
         task_name="update_fact_error",
     )
+    result.update(
+        {
+            "source_orders_table": FACT_ERROR_CONFIG["source_orders_table_name"],
+            "source_order_details_table": FACT_ERROR_CONFIG["source_order_details_table_name"],
+            "target_table": FACT_ERROR_CONFIG["target_table_name"],
+            "query": FACT_ERROR_CONFIG["query"],
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+    )
+    return result
