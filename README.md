@@ -14,7 +14,7 @@ These scripts create the database, source/staging tables, dimensions, fact table
 
 The professor or grader should only need to:
 
-1. Adjust `infrastructure_initiation/sql_server_config.cfg` or local `.env` if their SQL Server host, port, user, or password differs.
+1. Adjust `infrastructure_initiation/sql_server_config.cfg` if their SQL Server host, port, user, driver, or auth mode differs.
 2. Run the three DDL files above once.
 
 ## Configuration
@@ -25,7 +25,7 @@ Shared non-secret defaults are stored in:
 infrastructure_initiation/sql_server_config.cfg
 ```
 
-Local secrets and machine-specific overrides are stored in `.env`, which is ignored by Git.
+Local secrets are stored in `.env`, which is ignored by Git. Keep database configuration in `infrastructure_initiation/sql_server_config.cfg`; `.env` should only contain secret values such as passwords.
 
 Copy the example:
 
@@ -39,16 +39,37 @@ Minimum `.env` for SQL authentication:
 MSSQL_PASSWORD=your_password
 ```
 
-Optional overrides:
+Example `sql_server_config.cfg` for SQL authentication:
 
-```env
-MSSQL_SERVER=localhost
-MSSQL_PORT=1433
-MSSQL_DATABASE=ORDER_DDS
-MSSQL_USER=sa
+```ini
+[sql_server]
+driver = ODBC Driver 18 for SQL Server
+server = localhost
+port = 1433
+database = ORDER_DDS
+trusted_connection = no
+encrypt = yes
+trust_server_certificate = yes
+user = sa
+password =
 ```
 
-Use SQL authentication for the most portable setup across macOS, Windows, Ubuntu, Docker, and non-Docker SQL Server.
+Example `sql_server_config.cfg` for Windows trusted authentication with local SQL Server Express:
+
+```ini
+[sql_server]
+driver = ODBC Driver 18 for SQL Server
+server = localhost\SQLEXPRESS
+port = 1433
+database = ORDER_DDS
+trusted_connection = yes
+encrypt = no
+trust_server_certificate = yes
+user =
+password =
+```
+
+The connection helper supports both styles. SQL authentication uses `pymssql` first for compatibility with the original project setup, then falls back to ODBC if a driver is configured. Windows trusted authentication uses ODBC because `pymssql` does not support that login style reliably.
 
 ## Runtime Pipeline
 
