@@ -1,11 +1,12 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_dim_territories.sql
-    Purpose: Populate DimTerritories from staging_raw_Territories.
+    Purpose: Populate DimTerritories from Territories.
 
     SCD logic: SCD3.
-    The SCD3-tracked attribute is RegionID. Current region is kept in RegionID_NK / RegionID_SK_FK.
-    Previous region is kept in PreviousRegionID_NK / PreviousRegionID_SK_FK.
+    The SCD3-tracked attribute is TerritoryCode.
+    Current value is kept in TerritoryCode.
+    Previous value is kept in TerritoryCode_Prev1.
     Parameters expected from Python .format():
         database_name
         schema_name
@@ -48,11 +49,10 @@ BEGIN TRY
             TerritoryID_NK,
             TerritoryDescription,
             TerritoryCode,
+            TerritoryCode_Prev1,
+            TerritoryCode_Prev1_ValidTo,
             RegionID_NK,
             RegionID_SK_FK,
-            PreviousRegionID_NK,
-            PreviousRegionID_SK_FK,
-            PreviousRegionID_ValidTo,
             SOR_SK,
             staging_raw_id_nk
         )
@@ -60,11 +60,10 @@ BEGIN TRY
             SRC.TerritoryID,
             SRC.TerritoryDescription,
             SRC.TerritoryCode,
+            NULL,
+            NULL,
             SRC.RegionID,
             SRC.RegionID_SK_FK,
-            NULL,
-            NULL,
-            NULL,
             @SOR_SK,
             SRC.staging_raw_id_sk
         )
@@ -79,25 +78,19 @@ BEGIN TRY
     THEN
         UPDATE SET
             DST.TerritoryDescription = SRC.TerritoryDescription,
-            DST.TerritoryCode = SRC.TerritoryCode,
-            DST.PreviousRegionID_NK =
+            DST.TerritoryCode_Prev1 =
                 CASE
-                    WHEN ISNULL(DST.RegionID_NK, -1) <> ISNULL(SRC.RegionID, -1)
-                    THEN DST.RegionID_NK
-                    ELSE DST.PreviousRegionID_NK
+                    WHEN ISNULL(DST.TerritoryCode, N'') <> ISNULL(SRC.TerritoryCode, N'')
+                    THEN DST.TerritoryCode
+                    ELSE DST.TerritoryCode_Prev1
                 END,
-            DST.PreviousRegionID_SK_FK =
+            DST.TerritoryCode_Prev1_ValidTo =
                 CASE
-                    WHEN ISNULL(DST.RegionID_NK, -1) <> ISNULL(SRC.RegionID, -1)
-                    THEN DST.RegionID_SK_FK
-                    ELSE DST.PreviousRegionID_SK_FK
-                END,
-            DST.PreviousRegionID_ValidTo =
-                CASE
-                    WHEN ISNULL(DST.RegionID_NK, -1) <> ISNULL(SRC.RegionID, -1)
+                    WHEN ISNULL(DST.TerritoryCode, N'') <> ISNULL(SRC.TerritoryCode, N'')
                     THEN @Yesterday
-                    ELSE DST.PreviousRegionID_ValidTo
+                    ELSE DST.TerritoryCode_Prev1_ValidTo
                 END,
+            DST.TerritoryCode = SRC.TerritoryCode,
             DST.RegionID_NK = SRC.RegionID,
             DST.RegionID_SK_FK = SRC.RegionID_SK_FK,
             DST.SOR_SK = @SOR_SK,

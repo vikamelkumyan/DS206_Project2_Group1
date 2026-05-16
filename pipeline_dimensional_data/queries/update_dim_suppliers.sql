@@ -1,7 +1,7 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_dim_suppliers.sql
-    Purpose: Populate DimSuppliers from staging_raw_Suppliers.
+    Purpose: Populate DimSuppliers from Suppliers.
 
     SCD logic: SCD4.
     Current values stay in DimSuppliers. Previous values are inserted into DimSuppliers_History.

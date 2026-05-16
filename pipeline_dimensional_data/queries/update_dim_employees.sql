@@ -1,9 +1,10 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_dim_employees.sql
-    Purpose: Populate DimEmployees from staging_raw_Employees.
+    Purpose: Populate DimEmployees from Employees.
 
     SCD logic: SCD1 with delete.
+    Delete handling: physical delete from the dimension table when a source row disappears.
     Parameters expected from Python .format():
         database_name
         schema_name
@@ -70,9 +71,7 @@ BEGIN TRY
             ReportsToEmployeeID_NK,
             PhotoPath,
             SOR_SK,
-            staging_raw_id_nk,
-            IsDeleted,
-            DeletedDate
+            staging_raw_id_nk
         )
         VALUES (
             SRC.EmployeeID,
@@ -93,9 +92,7 @@ BEGIN TRY
             SRC.ReportsTo,
             SRC.PhotoPath,
             @SOR_SK,
-            SRC.staging_raw_id_sk,
-            0,
-            NULL
+            SRC.staging_raw_id_sk
         )
     WHEN MATCHED AND (
            ISNULL(DST.LastName, N'') <> ISNULL(SRC.LastName, N'')
@@ -116,7 +113,6 @@ BEGIN TRY
         OR ISNULL(DST.PhotoPath, N'') <> ISNULL(SRC.PhotoPath, N'')
         OR ISNULL(DST.staging_raw_id_nk, -1) <> ISNULL(SRC.staging_raw_id_sk, -1)
         OR DST.SOR_SK <> @SOR_SK
-        OR DST.IsDeleted = 1
     )
     THEN
         UPDATE SET
@@ -137,13 +133,9 @@ BEGIN TRY
             DST.ReportsToEmployeeID_NK = SRC.ReportsTo,
             DST.PhotoPath = SRC.PhotoPath,
             DST.SOR_SK = @SOR_SK,
-            DST.staging_raw_id_nk = SRC.staging_raw_id_sk,
-            DST.IsDeleted = 0,
-            DST.DeletedDate = NULL
+            DST.staging_raw_id_nk = SRC.staging_raw_id_sk
     WHEN NOT MATCHED BY SOURCE THEN
-        UPDATE SET
-            DST.IsDeleted = 1,
-            DST.DeletedDate = COALESCE(DST.DeletedDate, CAST(GETDATE() AS DATE));
+        DELETE;
 
     COMMIT TRANSACTION;
 END TRY

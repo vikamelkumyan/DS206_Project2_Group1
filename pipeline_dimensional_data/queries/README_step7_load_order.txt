@@ -24,3 +24,6 @@ Common parameters:
 - target_table_name
 
 Do not run these raw in SSMS without replacing the placeholders first.
+
+
+Source/staging table parameters should use the Table 1 source names, for example Categories, Customers, Employees, OrderDetails, Orders, Products, Region, Shippers, Suppliers, Territories.

@@ -1,7 +1,7 @@
 /*
     DS206 Group Project #2 - GROUP 1
     File: pipeline_dimensional_data/queries/update_dim_shippers.sql
-    Purpose: Populate DimShippers from staging_raw_Shippers.
+    Purpose: Populate DimShippers from Shippers.
 
     SCD logic: SCD1.
     Parameters expected from Python .format():

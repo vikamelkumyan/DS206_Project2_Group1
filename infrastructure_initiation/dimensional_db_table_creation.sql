@@ -50,7 +50,7 @@ GO
 
 /* =====================================================================================
    STEP 6: Dim_SOR
-   System of Record dimension. The project requires exactly the key and staging table name.
+   System of Record dimension. The project requires the key and the source/staging table name.
 ===================================================================================== */
 CREATE TABLE [dbo].[Dim_SOR] (
     [SOR_SK] INT IDENTITY(1,1) NOT NULL,
@@ -62,16 +62,16 @@ GO
 
 INSERT INTO [dbo].[Dim_SOR] ([staging_raw_table_name])
 VALUES
-    (N'staging_raw_Categories'),
-    (N'staging_raw_Customers'),
-    (N'staging_raw_Employees'),
-    (N'staging_raw_OrderDetails'),
-    (N'staging_raw_Orders'),
-    (N'staging_raw_Products'),
-    (N'staging_raw_Region'),
-    (N'staging_raw_Shippers'),
-    (N'staging_raw_Suppliers'),
-    (N'staging_raw_Territories');
+    (N'Categories'),
+    (N'Customers'),
+    (N'Employees'),
+    (N'OrderDetails'),
+    (N'Orders'),
+    (N'Products'),
+    (N'Region'),
+    (N'Shippers'),
+    (N'Suppliers'),
+    (N'Territories');
 GO
 
 /* =====================================================================================
@@ -92,7 +92,7 @@ GO
 
 /* =====================================================================================
    DimCategories - SCD1 with delete
-   Source: staging_raw_Categories
+   Source: Categories
    Natural key: CategoryID
 ===================================================================================== */
 CREATE TABLE [dbo].[DimCategories] (
@@ -104,9 +104,6 @@ CREATE TABLE [dbo].[DimCategories] (
     [SOR_SK] INT NOT NULL,
     [staging_raw_id_nk] INT NOT NULL,
 
-    [IsDeleted] BIT NOT NULL CONSTRAINT [DF_DimCategories_IsDeleted] DEFAULT (0),
-    [DeletedDate] DATE NULL,
-
     CONSTRAINT [PK_DimCategories] PRIMARY KEY CLUSTERED ([CategoryID_SK] ASC),
     CONSTRAINT [UQ_DimCategories_CategoryID_NK] UNIQUE ([CategoryID_NK]),
     CONSTRAINT [FK_DimCategories_Dim_SOR] FOREIGN KEY ([SOR_SK]) REFERENCES [dbo].[Dim_SOR] ([SOR_SK])
@@ -115,7 +112,7 @@ GO
 
 /* =====================================================================================
    DimCustomers - SCD2
-   Source: staging_raw_Customers
+   Source: Customers
    Natural key: CustomerID
 ===================================================================================== */
 CREATE TABLE [dbo].[DimCustomers] (
@@ -152,7 +149,7 @@ GO
 
 /* =====================================================================================
    DimEmployees - SCD1 with delete
-   Source: staging_raw_Employees
+   Source: Employees
    Natural key: EmployeeID
 ===================================================================================== */
 CREATE TABLE [dbo].[DimEmployees] (
@@ -178,9 +175,6 @@ CREATE TABLE [dbo].[DimEmployees] (
     [SOR_SK] INT NOT NULL,
     [staging_raw_id_nk] INT NOT NULL,
 
-    [IsDeleted] BIT NOT NULL CONSTRAINT [DF_DimEmployees_IsDeleted] DEFAULT (0),
-    [DeletedDate] DATE NULL,
-
     CONSTRAINT [PK_DimEmployees] PRIMARY KEY CLUSTERED ([EmployeeID_SK] ASC),
     CONSTRAINT [UQ_DimEmployees_EmployeeID_NK] UNIQUE ([EmployeeID_NK]),
     CONSTRAINT [FK_DimEmployees_Dim_SOR] FOREIGN KEY ([SOR_SK]) REFERENCES [dbo].[Dim_SOR] ([SOR_SK])
@@ -189,7 +183,7 @@ GO
 
 /* =====================================================================================
    DimRegion - SCD1
-   Source: staging_raw_Region
+   Source: Region
    Natural key: RegionID
 ===================================================================================== */
 CREATE TABLE [dbo].[DimRegion] (
@@ -210,7 +204,7 @@ GO
 
 /* =====================================================================================
    DimShippers - SCD1
-   Source: staging_raw_Shippers
+   Source: Shippers
    Natural key: ShipperID
 ===================================================================================== */
 CREATE TABLE [dbo].[DimShippers] (
@@ -230,7 +224,7 @@ GO
 
 /* =====================================================================================
    DimSuppliers - SCD4
-   Source: staging_raw_Suppliers
+   Source: Suppliers
    Natural key: SupplierID
    SCD4 structure: current version in DimSuppliers, previous versions in DimSuppliers_History.
 ===================================================================================== */
@@ -286,22 +280,20 @@ GO
 
 /* =====================================================================================
    DimTerritories - SCD3
-   Source: staging_raw_Territories
+   Source: Territories
    Natural key: TerritoryID
-   One selected SCD3-tracked attribute: RegionID.
-   Current value is RegionID_NK / RegionID_SK_FK, prior value is PreviousRegionID_NK / PreviousRegionID_SK_FK.
+   One selected SCD3-tracked attribute: TerritoryCode.
+   Current value is TerritoryCode, prior value is TerritoryCode_Prev1.
 ===================================================================================== */
 CREATE TABLE [dbo].[DimTerritories] (
     [TerritoryID_SK] INT IDENTITY(1,1) NOT NULL,
     [TerritoryID_NK] NVARCHAR(20) NOT NULL,
     [TerritoryDescription] NVARCHAR(100) NULL,
     [TerritoryCode] NVARCHAR(20) NULL,
-
+    [TerritoryCode_Prev1] NVARCHAR(20) NULL,
+    [TerritoryCode_Prev1_ValidTo] DATE NULL,
     [RegionID_NK] INT NULL,
     [RegionID_SK_FK] INT NULL,
-    [PreviousRegionID_NK] INT NULL,
-    [PreviousRegionID_SK_FK] INT NULL,
-    [PreviousRegionID_ValidTo] DATE NULL,
 
     [SOR_SK] INT NOT NULL,
     [staging_raw_id_nk] INT NOT NULL,
@@ -309,14 +301,13 @@ CREATE TABLE [dbo].[DimTerritories] (
     CONSTRAINT [PK_DimTerritories] PRIMARY KEY CLUSTERED ([TerritoryID_SK] ASC),
     CONSTRAINT [UQ_DimTerritories_TerritoryID_NK] UNIQUE ([TerritoryID_NK]),
     CONSTRAINT [FK_DimTerritories_DimRegion] FOREIGN KEY ([RegionID_SK_FK]) REFERENCES [dbo].[DimRegion] ([RegionID_SK]),
-    CONSTRAINT [FK_DimTerritories_Previous_DimRegion] FOREIGN KEY ([PreviousRegionID_SK_FK]) REFERENCES [dbo].[DimRegion] ([RegionID_SK]),
     CONSTRAINT [FK_DimTerritories_Dim_SOR] FOREIGN KEY ([SOR_SK]) REFERENCES [dbo].[Dim_SOR] ([SOR_SK])
 );
 GO
 
 /* =====================================================================================
    DimProducts - SCD2 with delete closing
-   Source: staging_raw_Products
+   Source: Products
    Natural key: ProductID
    CategoryID and SupplierID are source natural keys. CategoryID_SK_FK and SupplierID_SK_FK
    point to the current dimensional records used during the load.
@@ -343,8 +334,6 @@ CREATE TABLE [dbo].[DimProducts] (
     [ValidFrom] DATE NOT NULL,
     [ValidTo] DATE NULL,
     [IsCurrent] BIT NOT NULL CONSTRAINT [DF_DimProducts_IsCurrent] DEFAULT (1),
-    [IsDeleted] BIT NOT NULL CONSTRAINT [DF_DimProducts_IsDeleted] DEFAULT (0),
-
     CONSTRAINT [PK_DimProducts] PRIMARY KEY CLUSTERED ([ProductID_TABLE_SK] ASC),
     CONSTRAINT [FK_DimProducts_DimCategories] FOREIGN KEY ([CategoryID_SK_FK]) REFERENCES [dbo].[DimCategories] ([CategoryID_SK]),
     CONSTRAINT [FK_DimProducts_DimSuppliers] FOREIGN KEY ([SupplierID_SK_FK]) REFERENCES [dbo].[DimSuppliers] ([SupplierID_SK]),
@@ -360,7 +349,7 @@ GO
 /* =====================================================================================
    FactOrders - SNAPSHOT
    Grain: one row per order-product line, based on OrderID + ProductID.
-   Source: staging_raw_Orders joined with staging_raw_OrderDetails.
+   Source: Orders joined with OrderDetails.
 ===================================================================================== */
 CREATE TABLE [dbo].[FactOrders] (
     [FactOrder_SK] INT IDENTITY(1,1) NOT NULL,

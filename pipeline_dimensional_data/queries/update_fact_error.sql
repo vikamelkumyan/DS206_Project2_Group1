@@ -54,10 +54,10 @@ BEGIN TRY
     WHERE staging_raw_table_name = N'{source_order_details_table_name}';
 
     IF @Orders_SOR_SK IS NULL
-        THROW 50203, 'Dim_SOR does not contain the source table name for staging raw Orders.', 1;
+        THROW 50203, 'Dim_SOR does not contain the source table name for Orders.', 1;
 
     IF @OrderDetails_SOR_SK IS NULL
-        THROW 50204, 'Dim_SOR does not contain the source table name for staging raw OrderDetails.', 1;
+        THROW 50204, 'Dim_SOR does not contain the source table name for OrderDetails.', 1;
 
     /*
         Remove previous rejected rows for the same source tables.
@@ -112,7 +112,7 @@ BEGIN TRY
                 END,
                 CASE
                     WHEN od.staging_raw_id_sk IS NOT NULL AND od.ProductID IS NULL THEN N'Missing ProductID; '
-                    WHEN od.staging_raw_id_sk IS NOT NULL AND od.ProductID IS NOT NULL AND dp.ProductID_TABLE_SK IS NULL THEN N'Invalid ProductID_NK, product is missing, not current, or deleted; '
+                    WHEN od.staging_raw_id_sk IS NOT NULL AND od.ProductID IS NOT NULL AND dp.ProductID_TABLE_SK IS NULL THEN N'Invalid ProductID_NK, product is missing or not current; '
                     ELSE N''
                 END,
                 CASE
@@ -122,7 +122,7 @@ BEGIN TRY
                 END,
                 CASE
                     WHEN o.EmployeeID IS NULL THEN N'Missing EmployeeID; '
-                    WHEN o.EmployeeID IS NOT NULL AND de.EmployeeID_SK IS NULL THEN N'Invalid EmployeeID_NK, employee is missing or deleted; '
+                    WHEN o.EmployeeID IS NOT NULL AND de.EmployeeID_SK IS NULL THEN N'Invalid EmployeeID_NK, employee is missing; '
                     ELSE N''
                 END,
                 CASE
@@ -144,11 +144,9 @@ BEGIN TRY
            AND dc.IsCurrent = 1
         LEFT JOIN [{database_name}].[{schema_name}].[DimEmployees] AS de
             ON o.EmployeeID = de.EmployeeID_NK
-           AND de.IsDeleted = 0
         LEFT JOIN [{database_name}].[{schema_name}].[DimProducts] AS dp
             ON od.ProductID = dp.ProductID_NK
            AND dp.IsCurrent = 1
-           AND dp.IsDeleted = 0
         LEFT JOIN [{database_name}].[{schema_name}].[DimShippers] AS ds
             ON o.ShipVia = ds.ShipperID_NK
         LEFT JOIN [{database_name}].[{schema_name}].[DimTerritories] AS dt
@@ -191,7 +189,7 @@ BEGIN TRY
                 END,
                 CASE
                     WHEN od.ProductID IS NULL THEN N'Missing ProductID; '
-                    WHEN od.ProductID IS NOT NULL AND dp.ProductID_TABLE_SK IS NULL THEN N'Invalid ProductID_NK, product is missing, not current, or deleted; '
+                    WHEN od.ProductID IS NOT NULL AND dp.ProductID_TABLE_SK IS NULL THEN N'Invalid ProductID_NK, product is missing or not current; '
                     ELSE N''
                 END
             ) AS ErrorReason
@@ -201,7 +199,6 @@ BEGIN TRY
         LEFT JOIN [{database_name}].[{schema_name}].[DimProducts] AS dp
             ON od.ProductID = dp.ProductID_NK
            AND dp.IsCurrent = 1
-           AND dp.IsDeleted = 0
         WHERE o.staging_raw_id_sk IS NULL
     ),
     FactErrorSource AS (
