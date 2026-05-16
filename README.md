@@ -1,182 +1,114 @@
-# DS206 Project 2 - Infrastructure Initialization
+# DS206 Project 2 - Group 1 DDS Pipeline
 
-This repository contains infrastructure-as-code for setting up a SQL Server database with a dimensional data structure (DDS).
+This project creates and populates the `ORDER_DDS` dimensional data store from `raw_data_source.xlsx`.
 
-## Overview
+## Required One-Time Setup
 
-This project initializes a SQL Server instance with:
-- **Database**: `ORDER_DDS` (Order Dimensional Data Structure)
-- **Configuration**: ODBC-based connection settings for secure database access
-- **Platform**: Docker-based SQL Server 2022 instance
+Before running the Python pipeline, run the SQL files in `infrastructure_initiation/` once in SQL Server, in this order:
 
-## Prerequisites
+1. `infrastructure_initiation/dimensional_database_creation.sql`
+2. `infrastructure_initiation/staging_raw_table_creation.sql`
+3. `infrastructure_initiation/dimensional_db_table_creation.sql`
 
-### Required Software
-- **Docker**: SQL Server 2022 container
-- **Python 3.7+**: For testing and validation (optional)
-- **macOS/Linux**: This guide is optimized for Unix-like systems
+These scripts create the database, source/staging tables, dimensions, fact table, fact error table, `Dim_SOR`, keys, and constraints. They are not part of the runtime pipeline because table initiation should be done once before data loads.
 
-### Setup Instructions
+The professor or grader should only need to:
 
-1. **Start SQL Server in Docker**:
-   ```bash
-   docker run -e "ACCEPT_EULA=Y" \
-     -e "MSSQL_SA_PASSWORD=YourStrongPassword123" \
-     -e "MSSQL_PID=developer" \
-     -p 1433:1433 \
-     --name sqlserver \
-     -d mcr.microsoft.com/mssql/server:2022-latest
-   ```
+1. Adjust `infrastructure_initiation/sql_server_config.cfg` or local `.env` if their SQL Server host, port, user, or password differs.
+2. Run the three DDL files above once.
 
-2. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and add your SQL Server password (this file is gitignored and never committed)
+## Configuration
 
-## Files in This Project
+Shared non-secret defaults are stored in:
 
-```
-.
-├── .env.example                         # Environment template (commit this)
-├── .gitignore                           # Git ignore rules
-├── README.md                            # This file
-└── infrastructure_initiation/
-    ├── dimensional_database_creation.sql    # SQL script to create ORDER_DDS database
-    └── sql_server_config.cfg                # ODBC connection configuration
+```text
+infrastructure_initiation/sql_server_config.cfg
 ```
 
-### dimensional_database_creation.sql
-- Creates the `ORDER_DDS` database if it doesn't already exist
-- Uses `IF DB_ID` check for idempotency (safe to run multiple times)
-- T-SQL syntax compatible with SQL Server 2019+
+Local secrets and machine-specific overrides are stored in `.env`, which is ignored by Git.
 
-### sql_server_config.cfg
-- ODBC connection configuration file (no secrets)
-- Specifies connection parameters (server, port, database, encryption)
-- Uses encrypted connections with certificate validation disabled for development
-
-## Quick Start
-
-### 1. Verify SQL Server is Running
-
-```bash
-docker ps | grep sqlserver
-```
-
-Expected: Container should show `Up` status on port `0.0.0.0:1433->1433/tcp`
-
-### 2. Set Up Environment
+Copy the example:
 
 ```bash
 cp .env.example .env
-# Edit .env with your SQL Server password
-source .env
 ```
 
-### 3. Execute the Setup Script
+Minimum `.env` for SQL authentication:
+
+```env
+MSSQL_PASSWORD=your_password
+```
+
+Optional overrides:
+
+```env
+MSSQL_SERVER=localhost
+MSSQL_PORT=1433
+MSSQL_DATABASE=ORDER_DDS
+MSSQL_USER=sa
+```
+
+Use SQL authentication for the most portable setup across macOS, Windows, Ubuntu, Docker, and non-Docker SQL Server.
+
+## Runtime Pipeline
+
+Run the pipeline after the one-time SQL setup:
 
 ```bash
-cat infrastructure_initiation/dimensional_database_creation.sql | \
-  docker exec -i sqlserver /opt/mssql-tools18/bin/sqlcmd \
-  -S localhost \
-  -U sa \
-  -P "$MSSQL_SA_PASSWORD" \
-  -C
+python main.py --start_date=1996-01-01 --end_date=1998-12-31
 ```
 
-### 4. Verify Database Creation
+`main.py` only parses `start_date` and `end_date`, creates `DimensionalDataFlow`, and calls `exec()`.
+
+The flow executes runtime tasks in this order:
+
+1. Load all Excel sheets into the source/staging tables named `Categories`, `Customers`, `Employees`, `OrderDetails`, `Orders`, `Products`, `Region`, `Shippers`, `Suppliers`, and `Territories`.
+2. Update dimension tables.
+3. Update `FactOrders` for the selected date range.
+4. Update `FactOrders_Error` for rejected rows in the selected date range.
+
+The Python pipeline does not create or drop database tables.
+
+## Project Configuration
+
+Non-secret project paths, table names, query names, and load order are centralized in:
+
+```text
+pipeline_dimensional_data/config.py
+```
+
+Runtime code should not hard-code project paths outside this config module.
+
+## Logging
+
+Pipeline logs are written at `INFO` level to:
+
+```text
+logs/logs_dimensional_data_pipeline.txt
+```
+
+Each log line includes the pipeline `execution_id` UUID.
+
+## Tests
+
+Run:
 
 ```bash
-echo "SELECT name FROM sys.databases WHERE name='ORDER_DDS';" | \
-  docker exec -i sqlserver /opt/mssql-tools18/bin/sqlcmd \
-  -S localhost \
-  -U sa \
-  -P "$MSSQL_SA_PASSWORD" \
-  -C
+python -m pytest -q
 ```
 
-Expected output:
+The tests use mocks and temporary files. They do not require a live SQL Server connection.
+
+## Main Files
+
+```text
+main.py
+utils.py
+logging.py
+pipeline_dimensional_data/config.py
+pipeline_dimensional_data/flow.py
+pipeline_dimensional_data/tasks.py
+infrastructure_initiation/
+pipeline_dimensional_data/queries/
+tests/test_utils.py
 ```
-name
-ORDER_DDS
-
-(1 rows affected)
-```
-
-## Configuration Reference
-
-### sql_server_config.cfg Parameters
-
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `driver` | ODBC Driver 18 for SQL Server | Modern ODBC driver for SQL Server |
-| `server` | localhost | SQL Server host |
-| `port` | 1433 | Default SQL Server port |
-| `database` | ORDER_DDS | Target database |
-| `trusted_connection` | yes | Windows authentication (if applicable) |
-| `encrypt` | yes | Enable connection encryption |
-| `trust_server_certificate` | yes | Accept self-signed certificates (dev only) |
-
-**Security Note**: For production environments, set `trust_server_certificate=no` and configure proper SSL certificates.
-
-## Testing
-
-A complete test suite was run to verify:
-- ✓ SQL Server connectivity on localhost:1433
-- ✓ SQL script syntax validation
-- ✓ Database creation
-- ✓ Idempotency (script runs multiple times safely)
-- ✓ Configuration file format
-
-**Result**: All tests passed
-
-## Troubleshooting
-
-### Connection Refused
-- Ensure Docker container is running: `docker ps | grep sqlserver`
-- Check port 1433 is accessible: `nc -zv localhost 1433`
-
-### Authentication Failed
-- Verify password in `.env` matches Docker `MSSQL_SA_PASSWORD`
-- Confirm username is `sa` (system administrator)
-- Ensure you've run `source .env`
-
-### Certificate Errors
-- Use `-C` flag with sqlcmd to trust self-signed certificate (development only)
-- For production, configure proper SSL certificates
-
-### Database Already Exists
-- Script is idempotent and skips creation if database exists
-- To reset: `DROP DATABASE ORDER_DDS;` (destructive operation)
-
-## Reproducibility
-
-This setup is fully reproducible on any machine with Docker:
-
-1. **Idempotent Script**: `dimensional_database_creation.sql` safely handles re-execution
-2. **Non-sensitive Configuration**: All tracked files (`sql_server_config.cfg`) contain no secrets
-3. **Environment-based Secrets**: Passwords stored in `.env` (gitignored)
-4. **Containerized Database**: Docker ensures consistent environment
-5. **Version Locked**: SQL Server 2022-latest specified
-
-To reproduce on a new machine:
-1. Install Docker
-2. Run SQL Server container with your own password
-3. Copy `.env.example` to `.env` and fill in values
-4. Execute the SQL script (follow "Quick Start" above)
-5. Verify database creation
-
-## Next Steps
-
-After infrastructure initialization:
-- Load dimensional data into `ORDER_DDS` database
-- Create tables for dimensions and facts
-- Set up indexes and constraints
-- Configure backups and maintenance
-
-## Contact
-
-**Project**: DS206 - Project 2  
-**Group**: Group 1  
-**Last Updated**: 2026-05-07

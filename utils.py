@@ -1,18 +1,16 @@
-import os
 import re
 import uuid
 from configparser import ConfigParser, Error as ConfigParserError
 
+import pandas as pd
+import pymssql
 from dotenv import dotenv_values
 
+from pipeline_dimensional_data.config import ENV_PATH, SQL_SERVER_CONFIG_PATH
 
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_SQL_SERVER_CONFIG_PATH = os.path.join(
-    PROJECT_ROOT,
-    "infrastructure_initiation",
-    "sql_server_config.cfg",
-)
-DEFAULT_ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
+
+DEFAULT_SQL_SERVER_CONFIG_PATH = str(SQL_SERVER_CONFIG_PATH)
+DEFAULT_ENV_PATH = str(ENV_PATH)
 
 
 def _read_bool(value, default=False):
@@ -60,7 +58,6 @@ def load_sql_script(file_path):
         with open(file_path, "r", encoding="utf-8") as file:
             return file.read()
     except (FileNotFoundError, OSError):
-        print(f"Warning: SQL file not found at {file_path}")
         return None
 
 
@@ -75,12 +72,10 @@ def parse_db_config(
 
     try:
         read_files = parser.read(config_path)
-    except ConfigParserError as exc:
-        print(f"Warning: could not parse database config at {config_path}: {exc}")
+    except ConfigParserError:
         return None
 
     if not read_files or not parser.has_section(section):
-        print(f"Warning: database config section [{section}] not found at {config_path}")
         return None
 
     cfg = {_normalize_config_key(key): value.strip() for key, value in parser.items(section)}
@@ -111,6 +106,56 @@ def parse_db_config(
     }
 
 
+def connect_to_db(database=None):
+    cfg = parse_db_config()
+    if cfg is None:
+        raise ValueError("SQL Server configuration could not be loaded.")
+
+    return pymssql.connect(
+        server=cfg["server"],
+        user=cfg.get("user") or None,
+        password=cfg.get("password") or None,
+        database=database or cfg["database"],
+        port=cfg["port"],
+    )
+
+
+def format_sql(sql_script, parameters):
+    try:
+        return sql_script.format(**parameters)
+    except KeyError as exc:
+        missing_key = exc.args[0]
+        raise ValueError(f"Missing SQL parameter: {missing_key}") from exc
+
+
+def clean_excel_dataframe(df):
+    """Remove blank Excel columns and normalize column names for SQL inserts."""
+
+    cleaned_columns = []
+    columns_to_keep = []
+
+    for column in df.columns:
+        if pd.isna(column):
+            continue
+
+        column_name = str(column).strip().replace(" ", "")
+        if not column_name or column_name.lower() == "nan" or column_name.startswith("Unnamed:"):
+            continue
+
+        cleaned_columns.append(column_name)
+        columns_to_keep.append(column)
+
+    cleaned_df = df.loc[:, columns_to_keep].copy()
+    cleaned_df.columns = cleaned_columns
+    return cleaned_df
+
+
+def prepare_dataframe_for_sql(df):
+    """Convert pandas missing values to Python None for DB-API drivers."""
+
+    return df.astype(object).where(pd.notnull(df), None)
+
+
 def execute_sql_script(connection, sql_script):
     """Execute an SQL script through a DB-API compatible connection."""
 
@@ -135,7 +180,6 @@ def execute_sql_script(connection, sql_script):
             connection.rollback()
         except Exception:
             pass
-        print(f"Error executing SQL script: {exc}")
         return {"success": False, "error": str(exc)}
     finally:
         if cursor is not None:
