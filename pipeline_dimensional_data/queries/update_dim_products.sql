@@ -109,8 +109,6 @@ BEGIN TRY
         OR ISNULL(DST.UnitsOnOrder, -1) <> ISNULL(SRC.UnitsOnOrder, -1)
         OR ISNULL(DST.ReorderLevel, -1) <> ISNULL(SRC.ReorderLevel, -1)
         OR ISNULL(CAST(DST.Discontinued AS INT), -1) <> ISNULL(CAST(SRC.Discontinued AS INT), -1)
-        OR ISNULL(DST.staging_raw_id_nk, -1) <> ISNULL(SRC.staging_raw_id_sk, -1)
-        OR DST.SOR_SK <> @SOR_SK
       );
 
     /*

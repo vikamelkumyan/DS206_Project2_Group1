@@ -26,6 +26,22 @@ BEGIN TRY
     IF @SOR_SK IS NULL
         THROW 50004, 'Dim_SOR does not contain the source table name for DimEmployees.', 1;
 
+    /*
+        FactOrders has a required FK to DimEmployees. Remove fact rows that point
+        to employees missing from the source before physically deleting those employees.
+    */
+    ;WITH EmployeesToDelete AS (
+        SELECT DST.EmployeeID_SK
+        FROM [{database_name}].[{schema_name}].[{target_table_name}] AS DST
+        LEFT JOIN [{database_name}].[{schema_name}].[{source_table_name}] AS SRC
+            ON SRC.EmployeeID = DST.EmployeeID_NK
+        WHERE SRC.EmployeeID IS NULL
+    )
+    DELETE FACT
+    FROM [{database_name}].[{schema_name}].[FactOrders] AS FACT
+    INNER JOIN EmployeesToDelete AS DEL
+        ON DEL.EmployeeID_SK = FACT.EmployeeID_SK_FK;
+
     MERGE [{database_name}].[{schema_name}].[{target_table_name}] AS DST
     USING (
         SELECT
