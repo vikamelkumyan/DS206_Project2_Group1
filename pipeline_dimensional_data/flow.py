@@ -21,14 +21,60 @@ class DimensionalDataFlow:
     def _run_task(self, task_name, task_callable):
         self.logger.info("Starting task=%s", task_name)
         result = task_callable()
-        self.logger.info("Finished task=%s with result=%s", task_name, result)
+        self.logger.info(
+            "Finished task=%s success=%s",
+            result.get("task", task_name),
+            result.get("success"),
+        )
+        self._log_task_details(task_name, result)
 
         if not result.get("success"):
             self.status = "Failed"
+            self.logger.error(
+                "Failed task=%s error=%s",
+                result.get("task", task_name),
+                result.get("error"),
+            )
             self.logger.error("Stopping pipeline after failed task=%s", task_name)
             return result
 
         return result
+
+    def _log_task_details(self, task_name, result):
+        if not result.get("success"):
+            return
+
+        if task_name == "ingest_all_source_tables":
+            for table_count in result.get("table_counts", []):
+                self.logger.info(
+                    "Loaded source sheet=%s into table=%s row_count=%s",
+                    table_count["sheet"],
+                    table_count["table"],
+                    table_count["rows"],
+                )
+            return
+
+        if task_name == "update_all_dimensions":
+            for dimension in result.get("dimensions", []):
+                self.logger.info(
+                    "Updated dimension target_table=%s from source_table=%s using query=%s",
+                    dimension["target_table"],
+                    dimension["source_table"],
+                    dimension["query"],
+                )
+            return
+
+        if task_name in {"update_fact", "update_fact_error"}:
+            self.logger.info(
+                "Updated target_table=%s from source_orders_table=%s and source_order_details_table=%s "
+                "using query=%s for start_date=%s and end_date=%s",
+                result.get("target_table"),
+                result.get("source_orders_table"),
+                result.get("source_order_details_table"),
+                result.get("query"),
+                result.get("start_date"),
+                result.get("end_date"),
+            )
 
     def exec(self, start_date, end_date):
         self.logger.info(
