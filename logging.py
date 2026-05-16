@@ -50,13 +50,10 @@ class ExecutionIdFilter(Filter):
 def setup_dimensional_logger(execution_id: str, log_file_path: str | None = None):
     """Return a logger that writes dimensional flow logs to file and console."""
 
-    project_root = os.path.dirname(os.path.abspath(__file__))
     if log_file_path is None:
-        log_file_path = os.path.join(
-            project_root,
-            "logs",
-            "logs_dimensional_data_pipeline.txt",
-        )
+        from pipeline_dimensional_data.config import LOG_FILE_PATH
+
+        log_file_path = LOG_FILE_PATH
 
     os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
 

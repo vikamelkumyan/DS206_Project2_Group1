@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pandas as pd
 
-from pipeline_dimensional_data.tasks import _clean_excel_dataframe, _prepare_dataframe_for_sql
 import utils
 
 
@@ -259,7 +258,7 @@ def test_clean_excel_dataframe_drops_blank_columns():
         }
     )
 
-    result = _clean_excel_dataframe(df)
+    result = utils.clean_excel_dataframe(df)
 
     assert list(result.columns) == ["CustomerID"]
     assert result.to_dict("records") == [{"CustomerID": "ALFKI"}]
@@ -268,6 +267,6 @@ def test_clean_excel_dataframe_drops_blank_columns():
 def test_prepare_dataframe_for_sql_converts_nan_to_none():
     df = pd.DataFrame({"Region": [float("nan"), "WA"]})
 
-    result = _prepare_dataframe_for_sql(df)
+    result = utils.prepare_dataframe_for_sql(df)
 
     assert result.values.tolist() == [[None], ["WA"]]
